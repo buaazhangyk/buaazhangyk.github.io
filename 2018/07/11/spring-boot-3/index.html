@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: '复制',
+      copy_success: '复制成功',
+      copy_failure: '复制失败'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="前言本文是对上篇博文的继续，会以Jetty为例详细讲解一下。在spring boot中嵌入Jetty最核心的三个类是ServletWebServerApplicationContext、JettyServletWebServerFactory和JettyWebServer。上文中我们讲到ServletWebServerApplicationContext会在自己的生命周期中绑定create、sta">
+<meta name="keywords" content="SpringBoot">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spring boot-嵌入式web server启动过程分析(2)">
+<meta property="og:url" content="http://yoursite.com/2018/07/11/spring-boot-3/index.html">
+<meta property="og:site_name" content="Apollo">
+<meta property="og:description" content="前言本文是对上篇博文的继续，会以Jetty为例详细讲解一下。在spring boot中嵌入Jetty最核心的三个类是ServletWebServerApplicationContext、JettyServletWebServerFactory和JettyWebServer。上文中我们讲到ServletWebServerApplicationContext会在自己的生命周期中绑定create、sta">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2019-09-05T07:46:15.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Spring boot-嵌入式web server启动过程分析(2)">
+<meta name="twitter:description" content="前言本文是对上篇博文的继续，会以Jetty为例详细讲解一下。在spring boot中嵌入Jetty最核心的三个类是ServletWebServerApplicationContext、JettyServletWebServerFactory和JettyWebServer。上文中我们讲到ServletWebServerApplicationContext会在自己的生命周期中绑定create、sta">
+  <link rel="canonical" href="http://yoursite.com/2018/07/11/spring-boot-3/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>Spring boot-嵌入式web server启动过程分析(2) | Apollo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-CN">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Apollo</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-about">
+      
+    
+
+    <a href="/about" rel="section"><i class="menu-item-icon fa fa-fw fa-user"></i> <br>关于</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-tags">
+      
+    
+
+    <a href="/tags/" rel="section"><i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-categories">
+      
+    
+
+    <a href="/categories/" rel="section"><i class="menu-item-icon fa fa-fw fa-th"></i> <br>分类</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives" rel="section"><i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/07/11/spring-boot-3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Laokai">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Apollo">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">Spring boot-嵌入式web server启动过程分析(2)
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              
+                
+              
+
+              <time title="创建时间：2018-07-11 13:31:01" itemprop="dateCreated datePublished" datetime="2018-07-11T13:31:01+08:00">2018-07-11</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2019-09-05 15:46:15" itemprop="dateModified" datetime="2019-09-05T15:46:15+08:00">2019-09-05</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/Spring/" itemprop="url" rel="index"><span itemprop="name">Spring</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>本文是对上篇博文的继续，会以Jetty为例详细讲解一下。<br>在spring boot中嵌入Jetty最核心的三个类是<code>ServletWebServerApplicationContext</code>、<code>JettyServletWebServerFactory</code>和<code>JettyWebServer</code>。上文中我们讲到<code>ServletWebServerApplicationContext</code>会在自己的生命周期中绑定create、start以及stop WebServer等操作。</p>
+<p>首先我们来看一下在<code>ServletWebServerApplicationContext</code>中是如何选择<code>ServletWebServerFactory</code>及<code>WebServer</code>类型的。</p>
+<h1 id="选择ServletWebServerFactory及WebServer"><a href="#选择ServletWebServerFactory及WebServer" class="headerlink" title="选择ServletWebServerFactory及WebServer"></a>选择ServletWebServerFactory及WebServer</h1><p>本文主要讲述在<code>ServletWebServerApplicationContext</code>的<code>createServer</code>这一步是如何选择以及创建Jetty webServer的。详细可以看一下方法<code>createWebServer()</code>。分两步：<br>1）确定ServletWebServerFactory；2）由确定ServletWebServerFactory实例化webServer。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">createWebServer</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	WebServer webServer = <span class="keyword">this</span>.webServer;</span><br><span class="line">	ServletContext servletContext = getServletContext();</span><br><span class="line">	<span class="keyword">if</span> (webServer == <span class="keyword">null</span> &amp;&amp; servletContext == <span class="keyword">null</span>) &#123;</span><br><span class="line">		ServletWebServerFactory factory = getWebServerFactory();</span><br><span class="line">		<span class="keyword">this</span>.webServer = factory.getWebServer(getSelfInitializer());</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">//...... ignore</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="选择ServletWebServerFactory"><a href="#选择ServletWebServerFactory" class="headerlink" title="选择ServletWebServerFactory"></a>选择ServletWebServerFactory</h2><p>通过调用<code>getWebServerFactory()</code>方法获取到<code>JettyServletWebServerFactory</code>或<code>TomcatServletWebServerFactory</code>等。获取的方式是调用<code>getBeanFactory().getBeanNamesForType(ServletWebServerFactory.class)</code>，是从context里边的beanFactory中获取类型为<code>ServletWebServerFactory</code>的bean，并且还需要保证只能有一个该类型的Bean。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">protected</span> ServletWebServerFactory <span class="title">getWebServerFactory</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	String[] beanNames = getBeanFactory()</span><br><span class="line">			.getBeanNamesForType(ServletWebServerFactory.class);</span><br><span class="line">	<span class="comment">// ...... Check the length of beanNames, if length != 1, throw exception.</span></span><br><span class="line">	<span class="keyword">return</span> getBeanFactory().getBean(beanNames[<span class="number">0</span>], ServletWebServerFactory.class);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>那么接下来的问题就是：这个类型为<code>ServletWebServerFactory</code>的bean是何时注册到beanFactory中的呢？</p>
+<p>核心就在于两个类<code>ServletWebServerFactoryConfiguration</code>和<code>ConfigurationClassPostProcessor</code>。前者是一个典型的spring configuration类，带有<code>@Configuration</code>的注解，用于对Servlet WebServer配置。后者是一个BeanFactoryPostProcessor，主要用于启动阶段对<code>@Configuration</code>的类进行处理。</p>
+<h3 id="ServletWebServerFactoryConfiguration类"><a href="#ServletWebServerFactoryConfiguration类" class="headerlink" title="ServletWebServerFactoryConfiguration类"></a>ServletWebServerFactoryConfiguration类</h3><p>类<code>ServletWebServerFactoryConfiguration</code>来自于jar包spring-boot-autoconfigure.查看类的源码可以看到提供了三个webServer的配置Tomcat、Jetty和Undertow。对应有三个加有<code>@Configuration</code>注解的类<code>EmbeddedTomcat</code>、<code>EmbeddedJetty</code>、<code>EmbeddedUndertow</code>。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">ServletWebServerFactoryConfiguration</span> </span>&#123;</span><br><span class="line">	<span class="meta">@Configuration</span></span><br><span class="line">	<span class="meta">@ConditionalOnClass</span>(&#123; Servlet.class, Tomcat.class, UpgradeProtocol.class &#125;)</span><br><span class="line">	<span class="meta">@ConditionalOnMissingBean</span>(value = ServletWebServerFactory.class, search = SearchStrategy.CURRENT)</span><br><span class="line">	<span class="keyword">public</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">EmbeddedTomcat</span> </span>&#123;</span><br><span class="line">		<span class="meta">@Bean</span></span><br><span class="line">		<span class="function"><span class="keyword">public</span> TomcatServletWebServerFactory <span class="title">tomcatServletWebServerFactory</span><span class="params">()</span> </span>&#123;</span><br><span class="line">			<span class="keyword">return</span> <span class="keyword">new</span> TomcatServletWebServerFactory();</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="meta">@Configuration</span></span><br><span class="line">	<span class="meta">@ConditionalOnClass</span>(&#123; Servlet.class, Server.class, Loader.class,</span><br><span class="line">			WebAppContext.class &#125;)</span><br><span class="line">	<span class="meta">@ConditionalOnMissingBean</span>(value = ServletWebServerFactory.class, search = SearchStrategy.CURRENT)</span><br><span class="line">	<span class="keyword">public</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">EmbeddedJetty</span> </span>&#123;</span><br><span class="line">		<span class="meta">@Bean</span></span><br><span class="line">		<span class="function"><span class="keyword">public</span> JettyServletWebServerFactory <span class="title">JettyServletWebServerFactory</span><span class="params">()</span> </span>&#123;</span><br><span class="line">			<span class="keyword">return</span> <span class="keyword">new</span> JettyServletWebServerFactory();</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="meta">@Configuration</span></span><br><span class="line">	<span class="meta">@ConditionalOnClass</span>(&#123; Servlet.class, Undertow.class, SslClientAuthMode.class &#125;)</span><br><span class="line">	<span class="meta">@ConditionalOnMissingBean</span>(value = ServletWebServerFactory.class, search = SearchStrategy.CURRENT)</span><br><span class="line">	<span class="keyword">public</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">EmbeddedUndertow</span> </span>&#123;</span><br><span class="line">		<span class="meta">@Bean</span></span><br><span class="line">		<span class="function"><span class="keyword">public</span> UndertowServletWebServerFactory <span class="title">undertowServletWebServerFactory</span><span class="params">()</span> </span>&#123;</span><br><span class="line">			<span class="keyword">return</span> <span class="keyword">new</span> UndertowServletWebServerFactory();</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在实际中，只会有且仅有一个Bean会被在BeanFactory中被注册。能够达到这个效果主要依赖于两个配置<code>@ConditionalOnClass</code>和<code>@ConditionalOnMissingBean</code>。前者的作用是集合里边的class都存在的时候，才会允许Bean注册至beanFactory；后者的作用表示ApplicationContext中不存在集合中的class时，允许Bean注册至beanFactory。</p>
+<p>因此想要选择Jetty或者Tomcat作为webServer，可以通过添加或者删除指定webServer的jar包依赖来实现。</p>
+<h3 id="ConfigurationClassPostProcessor类"><a href="#ConfigurationClassPostProcessor类" class="headerlink" title="ConfigurationClassPostProcessor类"></a>ConfigurationClassPostProcessor类</h3><p>类<code>ConfigurationClassPostProcessor</code>是一个<code>BeanFactoryPostProcessor</code>，该类负责处理所有添加<code>@Configuration</code>，会将classpath下所有注解<code>@Configuration</code>的class类转化成<code>BeanDefinition</code>加入到beanFactory中。所有的BeanFactoryPostProcessor会在<code>OnRefresh()</code>方法中最开始的地方执行。因此在createServer执行的时候类型为<code>JettyServletWebServerFactory</code>的Bean已经存在于BeanFactory中。</p>
+<h2 id="生成JettyWebServer"><a href="#生成JettyWebServer" class="headerlink" title="生成JettyWebServer"></a>生成JettyWebServer</h2><p>上一步<code>getWebServerFactory</code>返回的会是<code>JettyServletWebServerFactory</code>。在<code>JettyServletWebServerFactory</code>的调用<code>getWebServer</code>会返回一个<code>JettyWebServer</code>实例。</p>
+<h1 id="创建-amp-配置WebServer"><a href="#创建-amp-配置WebServer" class="headerlink" title="创建&amp;配置WebServer"></a>创建&amp;配置WebServer</h1><p>这一节主要会用来讲解方法调用<code>getWebServer(ServletContextInitializer... initializers)</code>。一方面分析<code>getWebServer</code>方法的究竟干了哪些事情；另一方面会分析一下方法参数<code>ServletContextInitializer</code>，对应的实参是<code>selfInitialize(ServletContext servletContext)</code>，目的是在webServer执行之前调用该方法执行一些初始化的操作。</p>
+<h2 id="getWebServer方法分析"><a href="#getWebServer方法分析" class="headerlink" title="getWebServer方法分析"></a>getWebServer方法分析</h2><p>下面是<code>JettyServletWebServerFactory</code>的<code>getWebServer</code>方法的源码，可以看到创建Jetty Server的整体流程。</p>
+<ol>
+<li><p>创建 Jetty WebAppContext</p>
+</li>
+<li><p>创建 Jetty Server</p>
+</li>
+<li><p>将 ServletContextInitializer 配置到Jetty WebAppContext，后续Jetty WebAppContext初始化时会调用这些ServletContextInitializer.</p>
+</li>
+<li><p>将Jetty WebAppContext 封装配置成 Jetty Server的Handler</p>
+</li>
+<li><p>个性化的配置处理</p>
+</li>
+<li><p>New JettyWebServer，封装上边创建好的Jetty Server。</p>
+</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> WebServer <span class="title">getWebServer</span><span class="params">(ServletContextInitializer... initializers)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 1.创建 Jetty WebAppContext</span></span><br><span class="line">	JettyEmbeddedWebAppContext context = <span class="keyword">new</span> JettyEmbeddedWebAppContext();</span><br><span class="line">	<span class="keyword">int</span> port = (getPort() &gt;= <span class="number">0</span> ? getPort() : <span class="number">0</span>);</span><br><span class="line">	InetSocketAddress address = <span class="keyword">new</span> InetSocketAddress(getAddress(), port);</span><br><span class="line">	<span class="comment">// 2.创建 Jetty Server</span></span><br><span class="line">	Server server = createServer(address);</span><br><span class="line">	<span class="comment">// 3.将 ServletContextInitializer 配置到Jetty WebAppContext，后续Jetty WebAppContext初始化时会调用这些ServletContextInitializer.</span></span><br><span class="line">	configureWebAppContext(context, initializers);</span><br><span class="line">	<span class="comment">// 4.将Jetty WebAppContext 封装配置成 Jetty Server的Handler</span></span><br><span class="line">	server.setHandler(addHandlerWrappers(context));</span><br><span class="line">	<span class="keyword">this</span>.logger.info(<span class="string">"Server initialized with port: "</span> + port);</span><br><span class="line">	<span class="comment">// 5.个性化的配置处理</span></span><br><span class="line">	<span class="keyword">if</span> (getSsl() != <span class="keyword">null</span> &amp;&amp; getSsl().isEnabled()) &#123;</span><br><span class="line">		customizeSsl(server, address);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">for</span> (JettyServerCustomizer customizer : getServerCustomizers()) &#123;</span><br><span class="line">		customizer.customize(server);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> (<span class="keyword">this</span>.useForwardHeaders) &#123;</span><br><span class="line">		<span class="keyword">new</span> ForwardHeadersCustomizer().customize(server);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// new JettyWebServer，封装上边创建好的Jetty Server。</span></span><br><span class="line">	<span class="keyword">return</span> getJettyWebServer(server);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">protected</span> JettyWebServer <span class="title">getJettyWebServer</span><span class="params">(Server server)</span> </span>&#123;</span><br><span class="line">	<span class="keyword">return</span> <span class="keyword">new</span> JettyWebServer(server, getPort() &gt;= <span class="number">0</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>上边这一步，我们可以看到Jetty核心三组件Server、Handler（及其封装的AppContext）、Connector（在第2步<figure class="highlight plain"><figcaption><span>这个Jetty Server是怎么跟我们Spring boot创建的```WebApplicationContext```整合到一起去的呢？</span></figcaption><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">答案的关键就在于方法的参数`ServletContextInitializer`，对应的实参是`ServletWebServerApplicationContext`的`selfInitialize`方法。下面2.2一节会来分析一下这个方法。而至于`new JettyWebServer(server, getPort() &gt;= 0)`构造函数中执行了什么，会在第3.1节中分析。</span><br><span class="line"></span><br><span class="line">## selfInitialize方法</span><br><span class="line"></span><br><span class="line">分析一下`selfInitialize`方法的源码，在实际调用中方法参数`servletContext`会是上一节创建的`JettyEmbeddedWebAppContext`的ServletContext。</span><br><span class="line"></span><br><span class="line">```java</span><br><span class="line">private void selfInitialize(ServletContext servletContext) throws ServletException &#123;</span><br><span class="line">	prepareWebApplicationContext(servletContext);</span><br><span class="line">	ConfigurableListableBeanFactory beanFactory = getBeanFactory();</span><br><span class="line">	ExistingWebApplicationScopes existingScopes = new ExistingWebApplicationScopes(</span><br><span class="line">			beanFactory);</span><br><span class="line">	WebApplicationContextUtils.registerWebApplicationScopes(beanFactory,</span><br><span class="line">			getServletContext());</span><br><span class="line">	existingScopes.restore();</span><br><span class="line">	WebApplicationContextUtils.registerEnvironmentBeans(beanFactory,</span><br><span class="line">			getServletContext());</span><br><span class="line">	for (ServletContextInitializer beans : getServletContextInitializerBeans()) &#123;</span><br><span class="line">			beans.onStartup(servletContext);</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>关键看一下方法执行的第一行命令<code>prepareWebApplicationContext(servletContext)</code>，具体方法的源码就不在此处贴了，大致解释一下这个方法执行的核心逻辑就是将当前的<code>ServletWebServerApplicationContext</code>注入到<code>servletContext</code>的<code>ROOT_WEB_APPLICATION_CONTEXT_ATTRIBUTE</code>属性中去。至此我们也可以找到上一小节问题的答案。</p>
+<p>方法的后边的命令<code>registerWebApplicationScopes</code>起到以下作用：</p>
+<blockquote>
+<p>Register web-specific scopes (“request”, “session”, “globalSession”, “application”) with the given BeanFactory, as used by the WebApplicationContext.</p>
+</blockquote>
+<p>命令<code>registerEnvironmentBeans</code>的作用是：</p>
+<blockquote>
+<p>Register web-specific environment beans (“contextParameters”, “contextAttributes”) with the given BeanFactory, as used by the WebApplicationContext.</p>
+</blockquote>
+<h1 id="JettyWebServer"><a href="#JettyWebServer" class="headerlink" title="JettyWebServer"></a>JettyWebServer</h1><p>JettyWebServer 是对Jetty Server的一层包装，用来处理对Jetty Server的创建、启动和停止操作。</p>
+<h2 id="创建"><a href="#创建" class="headerlink" title="创建"></a>创建</h2><p>JettyWebServer的创建是通过调用其构造函数来完成的。可以看到构造函数的核心部分是方法<code>initialize()</code>。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="title">JettyWebServer</span><span class="params">(Server server, <span class="keyword">boolean</span> autoStart)</span> </span>&#123;</span><br><span class="line">	<span class="keyword">this</span>.autoStart = autoStart;</span><br><span class="line">	Assert.notNull(server, <span class="string">"Jetty Server must not be null"</span>);</span><br><span class="line">	<span class="keyword">this</span>.server = server;</span><br><span class="line">	initialize();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>重点来看一下方法<code>initialize()</code>，逐行代码分析一下。</p>
+<ol>
+<li>首先将Jetty Server的connectors赋值给this.connectors。为什么这么做呢？是因为后边会将Jetty Server的connectors清空，在此处先把这些cache起来，不然一会清空了就找不回来了。</li>
+<li>其次调用Jetty Server的<code>addBean()</code>方法，给Jetty添加一个AbstractLifeCycle的Bean，熟悉Jetty源码的会知道这个Bean的<code>doStart</code>方法会在Jetty Server的<code>start</code>方法中被调用。我们来看一下，新添加的这个AbstractLifeCycle会执行什么，执行的就是将Jetty Server的Connectors清空。为什么要做这一步呢？因为如果不将Connectors清空的话，执行Jetty Server的<code>start()</code>方法会将IO端口进行榜单、监听，而此时application context还没有准备就绪。</li>
+<li>执行Jetty Server的<code>start</code>方法，此处会将ServletContext进行一些初始化。</li>
+<li>设置StopAtShutdown标志位为false。</li>
+</ol>
+<p>至此，Jetty Server除了Connector之外，其余都已经准备就绪。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">initialize</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	<span class="keyword">synchronized</span> (<span class="keyword">this</span>.monitor) &#123;</span><br><span class="line">		<span class="keyword">try</span> &#123;</span><br><span class="line">			<span class="comment">// Cache the connectors and then remove them to prevent requests being</span></span><br><span class="line">			<span class="comment">// handled before the application context is ready.</span></span><br><span class="line">			<span class="keyword">this</span>.connectors = <span class="keyword">this</span>.server.getConnectors();</span><br><span class="line">			<span class="keyword">this</span>.server.addBean(<span class="keyword">new</span> AbstractLifeCycle() &#123;</span><br><span class="line">				<span class="meta">@Override</span></span><br><span class="line">				<span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">doStart</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">					<span class="keyword">for</span> (Connector connector : JettyWebServer.<span class="keyword">this</span>.connectors) &#123;</span><br><span class="line">						Assert.state(connector.isStopped(), () -&gt; <span class="string">"Connector "</span></span><br><span class="line">								+ connector + <span class="string">" has been started prematurely"</span>);</span><br><span class="line">					&#125;</span><br><span class="line">					JettyWebServer.<span class="keyword">this</span>.server.setConnectors(<span class="keyword">null</span>);</span><br><span class="line">				&#125;</span><br><span class="line">			&#125;);</span><br><span class="line">			<span class="comment">// Start the server so that the ServletContext is available</span></span><br><span class="line">			<span class="keyword">this</span>.server.start();</span><br><span class="line">			<span class="keyword">this</span>.server.setStopAtShutdown(<span class="keyword">false</span>);</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">catch</span> (Exception ex) &#123;...&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="启动"><a href="#启动" class="headerlink" title="启动"></a>启动</h2><p>Jetty Server的启动主要是通过<code>start()</code>方法。重点看一下方法的内部实现。</p>
+<p>首先，会看到上次缓存的Connectors重新赋值给Jetty Server。然后，会再次调用server的start方法以及初始化handlers。最后，会看到调用Connector的start方法，开启端口监听。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">start</span><span class="params">()</span> <span class="keyword">throws</span> WebServerException </span>&#123;</span><br><span class="line">	<span class="keyword">synchronized</span> (<span class="keyword">this</span>.monitor) &#123;</span><br><span class="line">		<span class="keyword">if</span> (<span class="keyword">this</span>.started) &#123;</span><br><span class="line">			<span class="keyword">return</span>;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">this</span>.server.setConnectors(<span class="keyword">this</span>.connectors);</span><br><span class="line">		<span class="keyword">if</span> (!<span class="keyword">this</span>.autoStart) &#123;</span><br><span class="line">			<span class="keyword">return</span>;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">try</span> &#123;</span><br><span class="line">			<span class="keyword">this</span>.server.start();</span><br><span class="line">			<span class="keyword">for</span> (Handler handler : <span class="keyword">this</span>.server.getHandlers()) &#123;</span><br><span class="line">				handleDeferredInitialize(handler);</span><br><span class="line">			&#125;</span><br><span class="line">			Connector[] connectors = <span class="keyword">this</span>.server.getConnectors();</span><br><span class="line">			<span class="keyword">for</span> (Connector connector : connectors) &#123;</span><br><span class="line">				<span class="keyword">try</span> &#123;</span><br><span class="line">					connector.start();</span><br><span class="line">				&#125;</span><br><span class="line">				<span class="keyword">catch</span> (BindException ex) &#123;......&#125;</span><br><span class="line">				<span class="keyword">this</span>.started = <span class="keyword">true</span>;</span><br><span class="line">				</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;	</span><br><span class="line">		<span class="keyword">catch</span> (Exception ex) &#123;......&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="停止"><a href="#停止" class="headerlink" title="停止"></a>停止</h2><p>Jetty Server的停止比较简单，只需要调用其stop方法即可。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">stop</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	<span class="keyword">synchronized</span> (<span class="keyword">this</span>.monitor) &#123;</span><br><span class="line">		<span class="keyword">this</span>.started = <span class="keyword">false</span>;</span><br><span class="line">		<span class="keyword">try</span> &#123;</span><br><span class="line">			<span class="keyword">this</span>.server.stop();</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">catch</span> (Exception ex) &#123;....&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/SpringBoot/" rel="tag"># SpringBoot</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2018/07/09/spring-boot-2/" rel="next" title="Spring boot-嵌入式web server启动过程分析(1)">
+                  <i class="fa fa-chevron-left"></i> Spring boot-嵌入式web server启动过程分析(1)
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2018/07/18/spring-boot-4/" rel="prev" title="Spring boot-初始化器&事件监听器">
+                  Spring boot-初始化器&事件监听器 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#选择ServletWebServerFactory及WebServer"><span class="nav-number">2.</span> <span class="nav-text">选择ServletWebServerFactory及WebServer</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#选择ServletWebServerFactory"><span class="nav-number">2.1.</span> <span class="nav-text">选择ServletWebServerFactory</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ServletWebServerFactoryConfiguration类"><span class="nav-number">2.1.1.</span> <span class="nav-text">ServletWebServerFactoryConfiguration类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ConfigurationClassPostProcessor类"><span class="nav-number">2.1.2.</span> <span class="nav-text">ConfigurationClassPostProcessor类</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#生成JettyWebServer"><span class="nav-number">2.2.</span> <span class="nav-text">生成JettyWebServer</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#创建-amp-配置WebServer"><span class="nav-number">3.</span> <span class="nav-text">创建&amp;配置WebServer</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#getWebServer方法分析"><span class="nav-number">3.1.</span> <span class="nav-text">getWebServer方法分析</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#JettyWebServer"><span class="nav-number">4.</span> <span class="nav-text">JettyWebServer</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#创建"><span class="nav-number">4.1.</span> <span class="nav-text">创建</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#启动"><span class="nav-number">4.2.</span> <span class="nav-text">启动</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#停止"><span class="nav-number">4.3.</span> <span class="nav-text">停止</span></a></li></ol></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Laokai</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+  <nav class="site-state motion-element">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives">
+        
+          <span class="site-state-item-count">6</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-name">分类</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-name">标签</span>
+        </a>
+      </div>
+    
+  </nav>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Laokai</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> 强力驱动 v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">主题 – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+
+
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: '复制',
+      copy_success: '复制成功',
+      copy_failure: '复制失败'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="前言在上一篇博文（）中，我们分析了spring boot的整体启动流程。主要分为两部分：1）是创建SpringApplication；2）是SpringApplication的run方法，核心流程是创建WebApplicationContext，并完成这个context的refresh。通过上篇博文，我们无法得知真正的web server（Jetty or Tomcat）是何时以及如何启动的。本篇">
+<meta name="keywords" content="SpringBoot">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Spring boot-嵌入式web server启动过程分析(1)">
+<meta property="og:url" content="http://yoursite.com/2018/07/09/spring-boot-2/index.html">
+<meta property="og:site_name" content="Apollo">
+<meta property="og:description" content="前言在上一篇博文（）中，我们分析了spring boot的整体启动流程。主要分为两部分：1）是创建SpringApplication；2）是SpringApplication的run方法，核心流程是创建WebApplicationContext，并完成这个context的refresh。通过上篇博文，我们无法得知真正的web server（Jetty or Tomcat）是何时以及如何启动的。本篇">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="http://yoursite.com/2018/07/09/spring-boot-2/!--%EF%BF%BC10--">
+<meta property="og:updated_time" content="2019-09-05T07:29:17.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Spring boot-嵌入式web server启动过程分析(1)">
+<meta name="twitter:description" content="前言在上一篇博文（）中，我们分析了spring boot的整体启动流程。主要分为两部分：1）是创建SpringApplication；2）是SpringApplication的run方法，核心流程是创建WebApplicationContext，并完成这个context的refresh。通过上篇博文，我们无法得知真正的web server（Jetty or Tomcat）是何时以及如何启动的。本篇">
+<meta name="twitter:image" content="http://yoursite.com/2018/07/09/spring-boot-2/!--%EF%BF%BC10--">
+  <link rel="canonical" href="http://yoursite.com/2018/07/09/spring-boot-2/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>Spring boot-嵌入式web server启动过程分析(1) | Apollo</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-CN">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Apollo</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-about">
+      
+    
+
+    <a href="/about" rel="section"><i class="menu-item-icon fa fa-fw fa-user"></i> <br>关于</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-tags">
+      
+    
+
+    <a href="/tags/" rel="section"><i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-categories">
+      
+    
+
+    <a href="/categories/" rel="section"><i class="menu-item-icon fa fa-fw fa-th"></i> <br>分类</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives" rel="section"><i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/07/09/spring-boot-2/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Laokai">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Apollo">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">Spring boot-嵌入式web server启动过程分析(1)
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              
+                
+              
+
+              <time title="创建时间：2018-07-09 13:31:01" itemprop="dateCreated datePublished" datetime="2018-07-09T13:31:01+08:00">2018-07-09</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2019-09-05 15:29:17" itemprop="dateModified" datetime="2019-09-05T15:29:17+08:00">2019-09-05</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/Spring/" itemprop="url" rel="index"><span itemprop="name">Spring</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>在上一篇博文（）中，我们分析了spring boot的整体启动流程。主要分为两部分：1）是创建SpringApplication；2）是SpringApplication的run方法，核心流程是创建WebApplicationContext，并完成这个context的refresh。<br>通过上篇博文，我们无法得知真正的web server（Jetty or Tomcat）是何时以及如何启动的。本篇博文会着重分析spring boot中是如何嵌入web server并将其启动成功的。我们会以webApplicationType为<code>SERVLET</code>的servlet web application举例进行分析。</p>
+<h1 id="配置web-server"><a href="#配置web-server" class="headerlink" title="配置web server"></a>配置web server</h1><p>web server在spring boot中是以嵌入的方式配置和运行的。spring boot中默认嵌入的web server是Tomcat,那我们就以Jetty为例进行分析。如果想要改变默认的Tomcat并切换为Jetty，需要对pom依赖进行如下的修改：1）去掉spring-boot-starter-tomcat的依赖 2）增加spring-boot-starter-jetty的依赖。</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">	<span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-web<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">	<span class="tag">&lt;<span class="name">exclusions</span>&gt;</span></span><br><span class="line">		<span class="tag">&lt;<span class="name">exclusion</span>&gt;</span></span><br><span class="line">			<span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">			<span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-tomcat<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line">		<span class="tag">&lt;/<span class="name">exclusion</span>&gt;</span></span><br><span class="line">	<span class="tag">&lt;/<span class="name">exclusions</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span><br><span class="line"></span><br><span class="line"><span class="tag">&lt;<span class="name">dependency</span>&gt;</span></span><br><span class="line">	<span class="tag">&lt;<span class="name">groupId</span>&gt;</span>org.springframework.boot<span class="tag">&lt;/<span class="name">groupId</span>&gt;</span></span><br><span class="line">	<span class="tag">&lt;<span class="name">artifactId</span>&gt;</span>spring-boot-starter-jetty<span class="tag">&lt;/<span class="name">artifactId</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">dependency</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<h1 id="创建ApplicationContext"><a href="#创建ApplicationContext" class="headerlink" title="创建ApplicationContext"></a>创建ApplicationContext</h1><p>本文是以<strong>webApplicationType=SERVLET</strong>来进行举例，根据上篇博文中创建<code>ApplicationContext</code>的分析，可以看到对应创建的<code>ApplicationContext</code>类型为<code>DEFAULT_WEB_CONTEXT_CLASS</code>，class类型为<code>&quot;org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext&quot;</code>。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">protected</span> ConfigurableApplicationContext <span class="title">createApplicationContext</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	Class&lt;?&gt; contextClass = <span class="keyword">this</span>.applicationContextClass;</span><br><span class="line">	<span class="keyword">if</span> (contextClass == <span class="keyword">null</span>) &#123;</span><br><span class="line">		<span class="keyword">try</span> &#123;</span><br><span class="line">			<span class="keyword">switch</span> (<span class="keyword">this</span>.webApplicationType) &#123;</span><br><span class="line">			<span class="keyword">case</span> SERVLET:</span><br><span class="line">				contextClass = Class.forName(DEFAULT_WEB_CONTEXT_CLASS);</span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">			<span class="keyword">case</span> REACTIVE:</span><br><span class="line">				contextClass = Class.forName(DEFAULT_REACTIVE_WEB_CONTEXT_CLASS);</span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">			<span class="keyword">default</span>:</span><br><span class="line">				contextClass = Class.forName(DEFAULT_CONTEXT_CLASS);</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">catch</span> (ClassNotFoundException ex) &#123;</span><br><span class="line">			<span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(</span><br><span class="line">					<span class="string">"Unable create a default ApplicationContext, "</span></span><br><span class="line">					+ <span class="string">"please specify an ApplicationContextClass"</span>,</span><br><span class="line">					ex);</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> (ConfigurableApplicationContext) BeanUtils.instantiateClass(contextClass);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="AnnotationConfigServletWebServerApplicationContext"><a href="#AnnotationConfigServletWebServerApplicationContext" class="headerlink" title="AnnotationConfigServletWebServerApplicationContext"></a>AnnotationConfigServletWebServerApplicationContext</h2><p>由上可知，spring boot中创建的ApplicationContext是一个<code>AnnotationConfigServletWebServerApplicationContext</code>实例。下图描述了对应的类关系图，其中用红色的圆圈标注的类属于spring-boot这个package，其余的类属于spring-context和spring-web这两个package。</p>
+<p><img src="!--%EF%BF%BC10--" alt="AnnotationConfigServletWebServerApplicationContext"></p>
+<p>从继承关系上看，<code>AnnotationConfigServletWebServerApplicationContext</code>继承了类<code>ServletWebServerApplicationContext</code>并实现了接口类<code>AnnotationConfigRegistry</code>。</p>
+<p>摘抄了一段<code>AnnotationConfigServletWebServerApplicationContext</code>的javadoc描述，它是一个可以将注解类作为context的input的一个<code>ServletWebServerApplicationContext</code>。在实现方式上，可以通过指定class进行注册也可以通过扫描package注册。由此可见，启动servlet web。application的核心实现在于类<code>ServletWebServerApplicationContext</code>中。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">* &#123;<span class="meta">@link</span> ServletWebServerApplicationContext&#125; that accepts annotated classes as input - in</span><br><span class="line">* particular &#123;<span class="meta">@link</span> org.springframework.context.annotation.Configuration <span class="meta">@Configuration</span>&#125;</span><br><span class="line">* -annotated classes, but also plain &#123;<span class="meta">@link</span> Component <span class="meta">@Component</span>&#125; classes and JSR-<span class="number">330</span></span><br><span class="line">* compliant classes using &#123;<span class="meta">@code</span> javax.inject&#125; annotations. Allows <span class="keyword">for</span> registering</span><br><span class="line">* <span class="function">classes one by <span class="title">one</span> <span class="params">(specifying class names as config location)</span> as well as <span class="keyword">for</span> classpath</span></span><br><span class="line"><span class="function">* <span class="title">scanning</span> <span class="params">(specifying base packages as config location)</span>.</span></span><br></pre></td></tr></table></figure>
+
+<p>摘抄一下该类的重要的私有变量和方法进行简单分析。</p>
+<p>首先看下两个私有变量AnnotatedBeanDefinitionReader和ClassPathBeanDefinitionScanner，前者用于对annotated bean classes的注册，后者用于对指定classpath进行扫描。</p>
+<p>再来看一下两个方法<code>register(Class&lt;?&gt;... annotatedClasses)</code> 和 <code>scan(String... basePackages)</code>，这两个方法是对接口AnnotationConfigRegistry的实现。前者是手动注册annotatedClasses，后者是完成对basePackages的扫描。后边的两个方法<code>prepareRefresh()</code>和<code>postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory)</code>是对父类方法的覆盖。特别是在方法<code>postProcessBeanFactory</code>中，会调用<code>reader.register(Class&lt;?&gt;... annotatedClasses)</code>方法将所有的annotatedClasses进行注册。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">AnnotationConfigServletWebServerApplicationContext</span></span></span><br><span class="line"><span class="class">	<span class="keyword">extends</span> <span class="title">ServletWebServerApplicationContext</span> <span class="keyword">implements</span> <span class="title">AnnotationConfigRegistry</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">private</span> <span class="keyword">final</span> AnnotatedBeanDefinitionReader reader;</span><br><span class="line">	<span class="keyword">private</span> <span class="keyword">final</span> ClassPathBeanDefinitionScanner scanner;</span><br><span class="line">	<span class="keyword">private</span> <span class="keyword">final</span> Set&lt;Class&lt;?&gt;&gt; annotatedClasses = <span class="keyword">new</span> LinkedHashSet&lt;&gt;();</span><br><span class="line">	</span><br><span class="line">	<span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">void</span> <span class="title">register</span><span class="params">(Class&lt;?&gt;... annotatedClasses)</span> </span>&#123;</span><br><span class="line">    	Assert.notEmpty(annotatedClasses,</span><br><span class="line">    				<span class="string">"At least one annotated class must be specified"</span>);</span><br><span class="line">    	<span class="keyword">this</span>.annotatedClasses.addAll(Arrays.asList(annotatedClasses));</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">void</span> <span class="title">scan</span><span class="params">(String... basePackages)</span> </span>&#123;</span><br><span class="line">    	Assert.notEmpty(basePackages, <span class="string">"At least one base package must be specified"</span>);</span><br><span class="line">    	<span class="keyword">this</span>.basePackages = basePackages;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">prepareRefresh</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    	<span class="keyword">this</span>.scanner.clearCache();</span><br><span class="line">    	<span class="keyword">super</span>.prepareRefresh();</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">postProcessBeanFactory</span><span class="params">(ConfigurableListableBeanFactory beanFactory)</span> </span>&#123;</span><br><span class="line">    	<span class="keyword">super</span>.postProcessBeanFactory(beanFactory);</span><br><span class="line">    	<span class="keyword">if</span> (<span class="keyword">this</span>.basePackages != <span class="keyword">null</span> &amp;&amp; <span class="keyword">this</span>.basePackages.length &gt; <span class="number">0</span>) &#123;</span><br><span class="line">    		<span class="keyword">this</span>.scanner.scan(<span class="keyword">this</span>.basePackages);</span><br><span class="line">    	&#125;</span><br><span class="line">    	<span class="keyword">if</span> (!<span class="keyword">this</span>.annotatedClasses.isEmpty()) &#123;</span><br><span class="line">    		<span class="keyword">this</span>.reader.register(ClassUtils.toClassArray(<span class="keyword">this</span>.annotatedClasses));</span><br><span class="line">    	&#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+<p>由此可见，<code>AnnotationConfigServletWebServerApplicationContext</code>仅仅是附加了注册注解类的功能实现，具体核心的实现在<code>ServletWebServerApplicationContext</code>类。</p>
+<h2 id="ServletWebServerApplicationContext"><a href="#ServletWebServerApplicationContext" class="headerlink" title="ServletWebServerApplicationContext"></a>ServletWebServerApplicationContext</h2><h3 id="webServer启动流程"><a href="#webServer启动流程" class="headerlink" title="webServer启动流程"></a>webServer启动流程</h3><p>webServer的启动跟异常关闭过程跟<code>ServletWebServerApplicationContext</code>覆盖父类<code>GenericWebApplicationContext</code>的5个方法<code>postProcessBeanFactory</code>、<code>refresh</code>、<code>onRefresh</code>、<code>finishRefresh</code>、<code>onClose</code>。除<code>refresh方法</code>之外，另外4个方法都会在父抽象类<code>AbstractApplicationContext</code>的<code>refresh</code>方法中执行，具体的执行次序及作用可以详见对该类的分析。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">postProcessBeanFactory</span><span class="params">(ConfigurableListableBeanFactory beanFactory)</span> </span>&#123;</span><br><span class="line">	beanFactory.addBeanPostProcessor(</span><br><span class="line">		<span class="keyword">new</span> WebApplicationContextServletContextAwareProcessor(<span class="keyword">this</span>));</span><br><span class="line">	beanFactory.ignoreDependencyInterface(ServletContextAware.class);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">void</span> <span class="title">refresh</span><span class="params">()</span> <span class="keyword">throws</span> BeansException, IllegalStateException </span>&#123;</span><br><span class="line">	<span class="keyword">try</span> &#123;</span><br><span class="line">		<span class="keyword">super</span>.refresh();</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">catch</span> (RuntimeException ex) &#123;</span><br><span class="line">		stopAndReleaseWebServer();</span><br><span class="line">		<span class="keyword">throw</span> ex;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">onRefresh</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	<span class="keyword">super</span>.onRefresh();</span><br><span class="line">	<span class="keyword">try</span> &#123;</span><br><span class="line">		createWebServer();</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">catch</span> (Throwable ex) &#123;</span><br><span class="line">		<span class="keyword">throw</span> <span class="keyword">new</span> ApplicationContextException(<span class="string">"Unable to start web server"</span>, ex);</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">finishRefresh</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	<span class="keyword">super</span>.finishRefresh();</span><br><span class="line">	WebServer webServer = startWebServer();</span><br><span class="line">	<span class="keyword">if</span> (webServer != <span class="keyword">null</span>) &#123;</span><br><span class="line">		publishEvent(<span class="keyword">new</span> ServletWebServerInitializedEvent(webServer, <span class="keyword">this</span>));</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">onClose</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	<span class="keyword">super</span>.onClose();</span><br><span class="line">	stopAndReleaseWebServer();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>1）首先会被调用的是<code>postProcessBeanFactory</code>方法，方法会执行两步。</p>
+<p>2）按照步骤，继续会被调用的是<code>onRefresh</code>方法，在<code>onRefresh</code>方法中会调用<code>createWebServer</code>方法，该方法会创建一个webServer。</p>
+<p>3）再次被调用的会是<code>finishRefresh</code>，在该方法中会调用<code>startWebServer</code>，真正将webServer进行启动。启动成功之后，会创建一个<code>ServletWebServerInitializedEvent</code>的事件并将其发布出去。</p>
+<p>4）最后关闭的方法，在ApplicationContext关闭时也会调用<code>stopAndReleaseWebServer</code>将对应的webServer关闭掉。</p>
+<p>总结一下，ServletWebServerApplicationContext通过方法覆盖将创建、启动、关闭webServer的操作嵌入到了<code>AbstractApplicationContext</code>的refresh执行流程中，将webServer的生命周期融入到应用上下文中。</p>
+<p>下面，我们就具体分析一下流程中具体的创建、启动和关闭的详细过程。</p>
+<h3 id="createWebServer"><a href="#createWebServer" class="headerlink" title="createWebServer"></a>createWebServer</h3><p>看一下createWebServer的方法实现，核心的代码实现在第5、6行。<br>在这篇博文里不会对具体代码实现进行分析，只会大概描述下流程，后续会在单独的博文中具体进行分析。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">createWebServer</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	WebServer webServer = <span class="keyword">this</span>.webServer;</span><br><span class="line">	ServletContext servletContext = getServletContext();</span><br><span class="line">	<span class="keyword">if</span> (webServer == <span class="keyword">null</span> &amp;&amp; servletContext == <span class="keyword">null</span>) &#123;</span><br><span class="line">		ServletWebServerFactory factory = getWebServerFactory();</span><br><span class="line">		<span class="keyword">this</span>.webServer = factory.getWebServer(getSelfInitializer());</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">else</span> <span class="keyword">if</span> (servletContext != <span class="keyword">null</span>) &#123;</span><br><span class="line">		<span class="keyword">try</span> &#123;</span><br><span class="line">			getSelfInitializer().onStartup(servletContext);</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">catch</span> (ServletException ex) &#123;</span><br><span class="line">			<span class="keyword">throw</span> <span class="keyword">new</span> ApplicationContextException(<span class="string">"Cannot initialize servlet context"</span>,</span><br><span class="line">					ex);</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	initPropertySources();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>第一步是通过调用<code>getWebServerFactory()</code>方法获取一个类型为<code>ServletWebServerFactory</code>的工厂实例。如果是Jetty容器的话会返回JettyServletWebServerFactory，tomcat的话会返回TomcatServletWebServerFactory。</p>
+<p>第二步是调用<code>ServletWebServerFactory</code>的<code>getWebServer(ServletContextInitializer... initializers)</code>创建一个webServer。通过方法的javadoc描述，可以看出该方法返回的是一个完全配置好但处于暂停状态的webServer实例。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@FunctionalInterface</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">ServletWebServerFactory</span> </span>&#123;</span><br><span class="line">	<span class="comment">/**</span></span><br><span class="line"><span class="comment">	 * Gets a new fully configured but paused &#123;<span class="doctag">@WebServer</span>&#125; instance. Clients should</span></span><br><span class="line"><span class="comment">	 * not be able to connect to the returned server until &#123;<span class="doctag">@WebServer</span>#start()&#125; is</span></span><br><span class="line"><span class="comment">	 * called (which happens when the &#123;<span class="doctag">@ApplicationContext</span>&#125; has been fully refreshed).</span></span><br><span class="line"><span class="comment">	 * <span class="doctag">@param</span> initializers &#123;<span class="doctag">@ServletContextInitializer</span>&#125;s that should be applied as</span></span><br><span class="line"><span class="comment">	 * the server starts</span></span><br><span class="line"><span class="comment">	 * <span class="doctag">@return</span> a fully configured and started &#123;<span class="doctag">@WebServer</span>&#125;</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="function">WebServer <span class="title">getWebServer</span><span class="params">(ServletContextInitializer... initializers)</span></span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>方法的参数<code>ServletContextInitializer</code>也非常重要，这些初始化器需要在webServer启动之前得以执行。这是初始化器的真正作用是干什么的呢？</p>
+<p>通过方法的javadoc描述可以看出，这个初始化器会帮助初始化<code>ServletContext</code>相关的任意的<em>servlets, filters, listeners,context-params, attributes</em>。设计这个interface的主要好处就是可以将<code>ServletContextInitializer</code>通过Spring来管理。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * Interface used to configure a Servlet 3.0+ &#123;<span class="doctag">@ServletContext</span> context&#125;</span></span><br><span class="line"><span class="comment"> * programmatically.</span></span><br><span class="line"><span class="comment"> * This interface is primarily designed to allow &#123;<span class="doctag">@ServletContextInitializer</span>&#125;s to be</span></span><br><span class="line"><span class="comment"> * managed by Spring and not the Servlet container.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@FunctionalInterface</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">ServletContextInitializer</span> </span>&#123;</span><br><span class="line">	<span class="comment">/**</span></span><br><span class="line"><span class="comment">	 * Configure the given &#123;<span class="doctag">@ServletContext</span>&#125; with any servlets, filters, listeners</span></span><br><span class="line"><span class="comment">	 * context-params and attributes necessary for initialization.</span></span><br><span class="line"><span class="comment">	 * <span class="doctag">@param</span> servletContext the &#123;<span class="doctag">@ServletContext</span>&#125; to initialize</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="function"><span class="keyword">void</span> <span class="title">onStartup</span><span class="params">(ServletContext servletContext)</span> <span class="keyword">throws</span> ServletException</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>通过以上分析可见创建webServer的核心代码实现在<code>ServletWebServerFactory</code>以及<code>ServletContextInitializer</code>，后续会在文章里拿Jetty作为例子进行详细分析。</p>
+<h3 id="startWebServer"><a href="#startWebServer" class="headerlink" title="startWebServer"></a>startWebServer</h3><p>通过上节的分析，我们可以知道createWebServer创建的webServer处于配置好但是暂停的状态。<code>startWebServer</code>方法会调用<code>webServer.start()</code>将webServer进行启动。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> WebServer <span class="title">startWebServer</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	WebServer webServer = <span class="keyword">this</span>.webServer;</span><br><span class="line">	<span class="keyword">if</span> (webServer != <span class="keyword">null</span>) &#123;</span><br><span class="line">		webServer.start();</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> webServer;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="stopAndReleaseWebServer"><a href="#stopAndReleaseWebServer" class="headerlink" title="stopAndReleaseWebServer"></a>stopAndReleaseWebServer</h3><p>会调用<code>webServer.stop()</code>将webServer进行关闭。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">stopAndReleaseWebServer</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	WebServer webServer = <span class="keyword">this</span>.webServer;</span><br><span class="line">	<span class="keyword">if</span> (webServer != <span class="keyword">null</span>) &#123;</span><br><span class="line">		<span class="keyword">try</span> &#123;</span><br><span class="line">			webServer.stop();</span><br><span class="line">			<span class="keyword">this</span>.webServer = <span class="keyword">null</span>;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">catch</span> (Exception ex) &#123;</span><br><span class="line">			<span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(ex);</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="总结-amp-比较"><a href="#总结-amp-比较" class="headerlink" title="总结&amp;比较"></a>总结&amp;比较</h1>
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/SpringBoot/" rel="tag"># SpringBoot</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2018/07/02/spring-boot-1/" rel="next" title="Spring boot启动过程分析">
+                  <i class="fa fa-chevron-left"></i> Spring boot启动过程分析
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2018/07/11/spring-boot-3/" rel="prev" title="Spring boot-嵌入式web server启动过程分析(2)">
+                  Spring boot-嵌入式web server启动过程分析(2) <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#配置web-server"><span class="nav-number">2.</span> <span class="nav-text">配置web server</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#创建ApplicationContext"><span class="nav-number">3.</span> <span class="nav-text">创建ApplicationContext</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#AnnotationConfigServletWebServerApplicationContext"><span class="nav-number">3.1.</span> <span class="nav-text">AnnotationConfigServletWebServerApplicationContext</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ServletWebServerApplicationContext"><span class="nav-number">3.2.</span> <span class="nav-text">ServletWebServerApplicationContext</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#webServer启动流程"><span class="nav-number">3.2.1.</span> <span class="nav-text">webServer启动流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#createWebServer"><span class="nav-number">3.2.2.</span> <span class="nav-text">createWebServer</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#startWebServer"><span class="nav-number">3.2.3.</span> <span class="nav-text">startWebServer</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#stopAndReleaseWebServer"><span class="nav-number">3.2.4.</span> <span class="nav-text">stopAndReleaseWebServer</span></a></li></ol></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#总结-amp-比较"><span class="nav-number">4.</span> <span class="nav-text">总结&amp;比较</span></a></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Laokai</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+  <nav class="site-state motion-element">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives">
+        
+          <span class="site-state-item-count">6</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-name">分类</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-name">标签</span>
+        </a>
+      </div>
+    
+  </nav>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Laokai</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> 强力驱动 v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">主题 – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+
+
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>
