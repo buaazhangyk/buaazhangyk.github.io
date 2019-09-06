@@ -55,19 +55,19 @@
   };
 </script>
 
-  <meta name="description" content="0. 前言Spring boot的一个特点就是抛弃了bean定义的传统xml方式，采用了注解化自动解析的方式。比如Spring的启动入口就加入了注解@Spring。 那么Spring boot中是如何自动化解析和处理annotation的呢？ 1.">
-<meta name="keywords" content="SpringBoot">
+  <meta name="description" content="内核线程与用户线程、用户进程相同点是：都由do_fork()创建，每个线程都有独立的task_struct和内核栈；都参与调度，内核线程也有优先级，会被调度器平等地换入换出。 不同之处在于：内核线程只工作在内核态中；而用户线程则既可以运行在内核态（执行系统调用时），也可以运行在用户态；内核线程没有用户空间，所以对于一个内核线程来说，它的0-3G的内存空间是空白的，它的current-&amp;gt;mm是">
+<meta name="keywords" content="Linux-Thread">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Spring boot-自动化annotation配置处理">
-<meta property="og:url" content="http://yoursite.com/2018/07/27/spring-boot-5/index.html">
+<meta property="og:title" content="Linux内核线程与用户线程">
+<meta property="og:url" content="http://yoursite.com/2018/02/08/linux-thread-1/index.html">
 <meta property="og:site_name" content="Apollo">
-<meta property="og:description" content="0. 前言Spring boot的一个特点就是抛弃了bean定义的传统xml方式，采用了注解化自动解析的方式。比如Spring的启动入口就加入了注解@Spring。 那么Spring boot中是如何自动化解析和处理annotation的呢？ 1.">
+<meta property="og:description" content="内核线程与用户线程、用户进程相同点是：都由do_fork()创建，每个线程都有独立的task_struct和内核栈；都参与调度，内核线程也有优先级，会被调度器平等地换入换出。 不同之处在于：内核线程只工作在内核态中；而用户线程则既可以运行在内核态（执行系统调用时），也可以运行在用户态；内核线程没有用户空间，所以对于一个内核线程来说，它的0-3G的内存空间是空白的，它的current-&amp;gt;mm是">
 <meta property="og:locale" content="zh-CN">
-<meta property="og:updated_time" content="2019-09-05T07:57:03.000Z">
+<meta property="og:updated_time" content="2019-09-06T00:56:38.000Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Spring boot-自动化annotation配置处理">
-<meta name="twitter:description" content="0. 前言Spring boot的一个特点就是抛弃了bean定义的传统xml方式，采用了注解化自动解析的方式。比如Spring的启动入口就加入了注解@Spring。 那么Spring boot中是如何自动化解析和处理annotation的呢？ 1.">
-  <link rel="canonical" href="http://yoursite.com/2018/07/27/spring-boot-5/">
+<meta name="twitter:title" content="Linux内核线程与用户线程">
+<meta name="twitter:description" content="内核线程与用户线程、用户进程相同点是：都由do_fork()创建，每个线程都有独立的task_struct和内核栈；都参与调度，内核线程也有优先级，会被调度器平等地换入换出。 不同之处在于：内核线程只工作在内核态中；而用户线程则既可以运行在内核态（执行系统调用时），也可以运行在用户态；内核线程没有用户空间，所以对于一个内核线程来说，它的0-3G的内存空间是空白的，它的current-&amp;gt;mm是">
+  <link rel="canonical" href="http://yoursite.com/2018/02/08/linux-thread-1/">
 
 
 <script id="page-configurations">
@@ -81,7 +81,7 @@
   };
 </script>
 
-  <title>Spring boot-自动化annotation配置处理 | Apollo</title>
+  <title>Linux内核线程与用户线程 | Apollo</title>
   
 
 
@@ -229,7 +229,7 @@
   
   
   <div class="post-block post">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/07/27/spring-boot-5/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/02/08/linux-thread-1/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="Laokai">
@@ -241,7 +241,7 @@
       <meta itemprop="name" content="Apollo">
     </span>
       <header class="post-header">
-        <h1 class="post-title" itemprop="name headline">Spring boot-自动化annotation配置处理
+        <h1 class="post-title" itemprop="name headline">Linux内核线程与用户线程
 
           
         </h1>
@@ -257,7 +257,7 @@
                 
               
 
-              <time title="创建时间：2018-07-27 13:31:01" itemprop="dateCreated datePublished" datetime="2018-07-27T13:31:01+08:00">2018-07-27</time>
+              <time title="创建时间：2018-02-08 10:00:00" itemprop="dateCreated datePublished" datetime="2018-02-08T10:00:00+08:00">2018-02-08</time>
             </span>
           
             
@@ -268,7 +268,7 @@
                   <i class="fa fa-calendar-check-o"></i>
                 </span>
                 <span class="post-meta-item-text">更新于</span>
-                <time title="修改时间：2019-09-05 15:57:03" itemprop="dateModified" datetime="2019-09-05T15:57:03+08:00">2019-09-05</time>
+                <time title="修改时间：2019-09-06 08:56:38" itemprop="dateModified" datetime="2019-09-06T08:56:38+08:00">2019-09-06</time>
               </span>
             
           
@@ -278,7 +278,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
               
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/Spring/" itemprop="url" rel="index"><span itemprop="name">Spring</span></a></span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/Linux/" itemprop="url" rel="index"><span itemprop="name">Linux</span></a></span>
 
                 
                 
@@ -297,9 +297,15 @@
     <div class="post-body" itemprop="articleBody">
 
       
-        <h1 id="0-前言"><a href="#0-前言" class="headerlink" title="0. 前言"></a>0. 前言</h1><p>Spring boot的一个特点就是抛弃了bean定义的传统xml方式，采用了注解化自动解析的方式。比如Spring的启动入口就加入了注解<code>@Spring</code>。</p>
-<p>那么Spring boot中是如何自动化解析和处理annotation的呢？</p>
-<h1 id="1"><a href="#1" class="headerlink" title="1."></a>1.</h1>
+        <h1 id="内核线程与用户线程、用户进程"><a href="#内核线程与用户线程、用户进程" class="headerlink" title="内核线程与用户线程、用户进程"></a>内核线程与用户线程、用户进程</h1><p><strong>相同点是：</strong><br>都由do_fork()创建，每个线程都有独立的task_struct和内核栈；<br>都参与调度，内核线程也有优先级，会被调度器平等地换入换出。</p>
+<p><strong>不同之处在于：</strong><br>内核线程只工作在内核态中；而用户线程则既可以运行在内核态（执行系统调用时），也可以运行在用户态；<br>内核线程没有用户空间，所以对于一个内核线程来说，它的0-3G的内存空间是空白的，它的current-&gt;mm是空的，与内核使用同一张页表；而用户线程则可以看到完整的0-4G内存空间。</p>
+<h1 id="内核线程的创建和作用"><a href="#内核线程的创建和作用" class="headerlink" title="内核线程的创建和作用"></a>内核线程的创建和作用</h1><h2 id="创建"><a href="#创建" class="headerlink" title="创建"></a>创建</h2><p>在Linux内核启动的最后阶段，系统会创建两个内核线程，一个是init，一个是kthreadd。其中init线程的作用是运行文件系统上的一系列”init”脚本，并启动shell进程，所以init线程称得上是系统中所有用户进程的祖先，它的pid是1。kthreadd线程是内核的守护线程，在内核正常工作时，它永远不退出，是一个死循环，它的pid是2。</p>
+<h2 id="作用"><a href="#作用" class="headerlink" title="作用"></a>作用</h2><p><strong>内核线程的作用主要有：</strong></p>
+<p> 1周期性的将dirty内存页同步到磁盘设备上。 比如 bpflush线程周期性的把dirty数据写回磁盘<br> 2内存页很少的情况下，把内存page 交换到磁盘空间。 比如kswapd，系统会为每一个NUMA创建一个kswapd进程，但是在非NUMA系统上，则仅有一个kswapd<br> 3管理延时动作<br> 4实现文件系统的事物日志</p>
+<p><strong>主要包括两种类型的内核线程：</strong></p>
+<p>线程按周期性间隔运行，检测特定资源的使用，在用量超出或者低于预置的限制时采取行动在线程启动后则一直等待，直到内核线程请求执行某一特定的操作。</p>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>通过上述不同之处的对比可以发现，内核线程没有用户内存空间，与之相对的是用户进程（注意，此处不是用户线程），用户进程同时具备内核空间与用户空间，在进行系统调用时用户进程会由用户内存空间陷入内核内存空间。之所以此处采用内核线程与用户进程（而非用户线程）进行对比，是由于内核线程（kernel thread）是“独立运行在内核空间的标准进程”（以上这句话摘自《linux内核设计与实现》），因此从功能上看内核线程一方面具有进程的概念特点——具有独立功能的程序关于某个数据集合上的一次执行活动，是系统进行资源分配的单位，同时内核线程又具有线程的概念特点——进程内的一个可调度实体。</p>
+
     </div>
 
     
@@ -314,7 +320,7 @@
           
           <div class="post-tags">
             
-              <a href="/tags/SpringBoot/" rel="tag"># SpringBoot</a>
+              <a href="/tags/Linux-Thread/" rel="tag"># Linux-Thread</a>
             
           </div>
         
@@ -324,18 +330,14 @@
           <div class="post-nav">
             <div class="post-nav-next post-nav-item">
               
-                <a href="/2018/07/18/spring-boot-4/" rel="next" title="Spring boot-初始化器&事件监听器">
-                  <i class="fa fa-chevron-left"></i> Spring boot-初始化器&事件监听器
-                </a>
-              
             </div>
 
             <span class="post-nav-divider"></span>
 
             <div class="post-nav-prev post-nav-item">
               
-                <a href="/2019/09/03/hello-world/" rel="prev" title="Hello World">
-                  Hello World <i class="fa fa-chevron-right"></i>
+                <a href="/2018/07/02/spring-boot-1/" rel="prev" title="Spring boot启动过程分析">
+                  Spring boot启动过程分析 <i class="fa fa-chevron-right"></i>
                 </a>
               
             </div>
@@ -385,7 +387,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
-          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#0-前言"><span class="nav-number">1.</span> <span class="nav-text">0. 前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#1"><span class="nav-number">2.</span> <span class="nav-text">1.</span></a></li></ol></div>
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#内核线程与用户线程、用户进程"><span class="nav-number">1.</span> <span class="nav-text">内核线程与用户线程、用户进程</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#内核线程的创建和作用"><span class="nav-number">2.</span> <span class="nav-text">内核线程的创建和作用</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#创建"><span class="nav-number">2.1.</span> <span class="nav-text">创建</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#作用"><span class="nav-number">2.2.</span> <span class="nav-text">作用</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#总结"><span class="nav-number">3.</span> <span class="nav-text">总结</span></a></li></ol></div>
         
       </div>
       <!--/noindex-->
